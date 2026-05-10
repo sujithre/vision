@@ -263,6 +263,8 @@ def hybrid_semantic_search(
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    global INDEX_NAME
+
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("jsonl", type=Path,
                     help="Path to the *.vision.slides.jsonl produced by analyze_pptx_vision.py")
@@ -281,7 +283,6 @@ def main() -> int:
         print(f"ERROR: file not found: {args.jsonl}", file=sys.stderr)
         return 2
 
-    global INDEX_NAME
     INDEX_NAME = args.index
 
     print(f"Search   : {SEARCH_ENDPOINT}")
