@@ -270,10 +270,17 @@ credential = ChainedTokenCredential(
 aoai_token_provider = get_bearer_token_provider(
     credential, "https://cognitiveservices.azure.com/.default"
 )
+# Per-request timeout (seconds). High-detail vision calls can be slow but
+# should never hang forever — without this, a stuck TLS read blocks the
+# whole pipeline. Override with VISION_TIMEOUT env var.
+VISION_TIMEOUT = float(os.environ.get("VISION_TIMEOUT", "120"))
+
 aoai = AzureOpenAI(
     azure_endpoint=AOAI_ENDPOINT,
     azure_ad_token_provider=aoai_token_provider,
     api_version=AOAI_API_VER,
+    timeout=VISION_TIMEOUT,
+    max_retries=0,  # we handle retries ourselves in extract_slide()
 )
 
 # ---------------------------------------------------------------------------
@@ -470,11 +477,33 @@ Return JSON only.
 # Render helpers
 # ---------------------------------------------------------------------------
 
-def _ensure_pdf(pptx: Path, pdf: Path | None) -> Path:
+def _ensure_pdf(pptx: Path, pdf: Path | None, expected_pages: int | None = None) -> Path:
     if pdf and pdf.exists():
         return pdf
     sibling = pptx.with_suffix(".pdf")
     if sibling.exists():
+        # Detect stale PDF (page count != slide count). If LibreOffice is
+        # available we re-render; otherwise warn and continue with the stale one.
+        if expected_pages is not None:
+            try:
+                with fitz.open(sibling) as _doc:
+                    actual = _doc.page_count
+            except Exception:
+                actual = None
+            if actual is not None and actual != expected_pages:
+                soffice = shutil.which("soffice") or shutil.which("libreoffice")
+                if soffice:
+                    print(f"  stale PDF ({actual} pages vs {expected_pages} slides) — "
+                          f"re-rendering via {soffice}…")
+                    subprocess.run(
+                        [soffice, "--headless", "--convert-to", "pdf",
+                         "--outdir", str(pptx.parent), str(pptx)],
+                        check=True,
+                    )
+                else:
+                    print(f"  WARNING: PDF has {actual} pages but pptx has "
+                          f"{expected_pages} slides. Re-export the PDF manually "
+                          "to match, or install LibreOffice for auto-rendering.")
         return sibling
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
@@ -691,7 +720,12 @@ def main():
         print(f"[1/3] reusing {len(img_paths)} PNGs from {img_dir}")
     else:
         print("[1/3] rendering slides…")
-        pdf = _ensure_pdf(pptx, args.pdf)
+        # Peek at slide count first so we can detect a stale sibling PDF.
+        try:
+            expected = len(Presentation(str(pptx)).slides)
+        except Exception:
+            expected = None
+        pdf = _ensure_pdf(pptx, args.pdf, expected_pages=expected)
         img_paths = _render_pdf_to_pngs(pdf, img_dir, dpi=args.dpi)
         print(f"      wrote {len(img_paths)} PNGs to {img_dir}")
 
