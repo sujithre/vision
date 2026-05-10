@@ -444,7 +444,10 @@ EXTRACT_SYSTEM = (
     "every such emphasis in `highlighted_terms`, and ALSO mention them "
     "verbatim in `slide_description`. If the slide title contains a "
     "highlighted word, append it at the end of `slide_title` as "
-    "`[highlighted: <word>]` so downstream search picks it up."
+    "`[highlighted: <word>]` so downstream search picks it up. "
+    "If the slide has NO visual highlights, return an empty list `[]` for "
+    "`highlighted_terms` and do NOT append any `[highlighted: …]` suffix to "
+    "the title — never invent emphasis that isn't visibly there."
 )
 
 EXTRACT_USER_TEMPLATE = """Slide {slide_number} of {total_slides}.
@@ -461,6 +464,8 @@ Fill the schema. Specifically:
   word/phrase verbatim and what it emphasizes.
 - `highlighted_terms`: list every visually emphasised word/phrase on the slide
   (titles, body, callouts) with its color and location. Do NOT skip any.
+  If there are NO visual highlights, return `[]` (empty list) and do not
+  append any `[highlighted: …]` suffix to `slide_title`.
 - `charts`: capture every series with values aligned to `categories` (same length, same order).
 - `tables`: capture the full grid; if a chart visualises a table on this slide,
   set its `source_table_index` to the table's 0-based index.
