@@ -290,6 +290,20 @@ SLIDE_JSON_SCHEMA = {
             "slide_title":       {"type": "string"},
             "slide_summary":     {"type": "string"},
             "slide_description": {"type": "string"},
+            "highlighted_terms": {
+                "type": "array",
+                "description": "Words/phrases the slide visually emphasises (pink/red/yellow fill, colored underline, bold-colored text). Each entry is the verbatim emphasised text with optional color/location.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "text":     {"type": "string"},
+                        "color":    {"type": "string"},
+                        "location": {"type": "string", "description": "e.g. title, subtitle, body, callout, footer"},
+                    },
+                    "required": ["text", "color", "location"],
+                },
+            },
             "kpis": {
                 "type": "array",
                 "items": {
@@ -417,7 +431,13 @@ EXTRACT_SYSTEM = (
     "annotations, and visual emphasis. Use the markdown for exact numbers when "
     "it contradicts what you might OCR. Return STRICT JSON matching the "
     "provided schema. Do not invent numbers that are not visible or in the "
-    "ground truth."
+    "ground truth. "
+    "Pay special attention to visually highlighted words/phrases (pink, red, "
+    "yellow, or other colored fill / underline / bold-color text). Capture "
+    "every such emphasis in `highlighted_terms`, and ALSO mention them "
+    "verbatim in `slide_description`. If the slide title contains a "
+    "highlighted word, append it at the end of `slide_title` as "
+    "`[highlighted: <word>]` so downstream search picks it up."
 )
 
 EXTRACT_USER_TEMPLATE = """Slide {slide_number} of {total_slides}.
@@ -427,6 +447,13 @@ EXTRACT_USER_TEMPLATE = """Slide {slide_number} of {total_slides}.
 == END GROUND-TRUTH ==
 
 Fill the schema. Specifically:
+- `slide_title`: full visible title. If any word/phrase is visually highlighted
+  (pink/red/yellow fill, colored underline, bold-color), append it at the end
+  like `… [highlighted: Nation]` (multiple → comma-separated).
+- `slide_description`: 1–3 sentences. Explicitly mention every highlighted
+  word/phrase verbatim and what it emphasizes.
+- `highlighted_terms`: list every visually emphasised word/phrase on the slide
+  (titles, body, callouts) with its color and location. Do NOT skip any.
 - `charts`: capture every series with values aligned to `categories` (same length, same order).
 - `tables`: capture the full grid; if a chart visualises a table on this slide,
   set its `source_table_index` to the table's 0-based index.
@@ -702,6 +729,7 @@ def main():
         data.setdefault("slide_title", title or "")
         data.setdefault("slide_summary", "")
         data.setdefault("slide_description", "")
+        data.setdefault("highlighted_terms", [])
         data.setdefault("kpis", [])
         data.setdefault("charts", [])
         data.setdefault("tables", [])
@@ -719,6 +747,7 @@ def main():
             "slide_title":       data["slide_title"],
             "slide_summary":     data["slide_summary"],
             "slide_description": data["slide_description"],
+            "highlighted_terms": data["highlighted_terms"],
             "kpis":              data["kpis"],
             "charts":            data["charts"],
             "tables":            data["tables"],
@@ -746,6 +775,11 @@ def main():
     search_docs = []
     for s in per_slide:
         callouts_text = " || ".join(s.get("callouts", []))
+        highlights_text = " || ".join(
+            f"{h.get('text','')} [{h.get('color','')} @ {h.get('location','')}]".strip()
+            for h in (s.get("highlighted_terms") or [])
+            if h.get("text")
+        )
         search_docs.append({
             "id":                f"{deck_stem}_slide_{s['slide_number']:02d}",
             "deck":              pptx.name,
@@ -754,6 +788,7 @@ def main():
             "slide_title":       s["slide_title"],
             "slide_summary":     s["slide_summary"],
             "slide_description": s["slide_description"],
+            "highlighted_terms": highlights_text,
             "kpis_text":         _flatten_kpis(s["kpis"]),
             "charts_text":       _flatten_charts(s["charts"]),
             "tables_text":       _flatten_tables(s["tables"]),
