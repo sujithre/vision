@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -165,6 +166,14 @@ def build_index() -> SearchIndex:
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Azure Search keys allow only [A-Za-z0-9_-=]. Everything else must be replaced
+# (e.g. spaces in the deck filename leak into the per-slide id).
+_KEY_INVALID = re.compile(r"[^A-Za-z0-9_\-=]")
+
+def sanitize_key(raw: str) -> str:
+    return _KEY_INVALID.sub("_", raw)
+
+
 def load_jsonl(path: Path) -> list[dict]:
     docs: list[dict] = []
     with path.open("r", encoding="utf-8") as f:
@@ -192,7 +201,7 @@ def embed_batch(aoai: AzureOpenAI, texts: list[str], batch: int = 16) -> list[li
 
 def to_search_doc(d: dict, vector: list[float]) -> dict:
     return {
-        "id": d["id"],
+        "id": sanitize_key(d["id"]),
         "deck": d.get("deck", ""),
         "slide_number": int(d["slide_number"]),
         "page_number": int(d.get("page_number", d["slide_number"])),
