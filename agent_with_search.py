@@ -34,8 +34,9 @@ Required RBAC on the Foundry project:
 The Search connection itself must already exist in the Foundry project and
 point at the same Search service that hosts ``chart-Automation``.
 
-Install:
-    pip install agent-framework agent-framework-azure-ai azure-ai-agents azure-identity python-dotenv
+Install (Agent Framework is pre-release, so --pre is required):
+    pip install --pre "agent-framework==1.0.0rc6" "agent-framework-azure-ai==1.0.0rc6" \
+        "azure-ai-agents>=1.2.0b5,<1.2.0b6" azure-identity python-dotenv
 """
 
 from __future__ import annotations
