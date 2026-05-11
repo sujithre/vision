@@ -79,7 +79,7 @@ def main() -> int:
     with AIProjectClient(endpoint=project_endpoint, credential=AzureCliCredential()) as project:
         # If an agent with this name already exists, delete it so the new
         # definition (tools, instructions, model) takes effect cleanly.
-        for existing in project.agents.list_agents():
+        for existing in project.agents.list():
             if getattr(existing, "name", None) == agent_name:
                 print(f"Removing existing agent '{agent_name}' (id={existing.id})")
                 project.agents.delete_agent(existing.id)
