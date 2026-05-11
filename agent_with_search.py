@@ -35,7 +35,7 @@ The Search connection itself must already exist in the Foundry project and
 point at the same Search service that hosts ``chart-Automation``.
 
 Install:
-    pip install agent-framework azure-ai-agents azure-identity python-dotenv
+    pip install agent-framework agent-framework-azure-ai azure-ai-agents azure-identity python-dotenv
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ from dotenv import load_dotenv
 from azure.identity.aio import AzureCliCredential
 from azure.ai.agents.models import AzureAISearchTool, AzureAISearchQueryType
 
-from agent_framework.azure import AzureAIAgentClient
+from agent_framework_azure_ai import AzureAIAgentClient
 
 
 load_dotenv()
@@ -118,7 +118,7 @@ async def run() -> int:
         AzureAIAgentClient(
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT,
-            async_credential=credential,
+            credential=credential,
         ) as client,
     ):
         agent = client.create_agent(
@@ -139,8 +139,19 @@ async def run() -> int:
                 print()
         finally:
             if not KEEP_AGENT and agent_id:
+                # AzureAIAgentClient exposes the underlying azure-ai-agents
+                # AgentsClient under one of these attribute names depending on
+                # the agent-framework version. Try both before giving up.
+                agents_client = (
+                    getattr(client, "agents_client", None)
+                    or getattr(getattr(client, "project_client", None), "agents", None)
+                )
                 try:
-                    await client.project_client.agents.delete_agent(agent_id)
+                    if agents_client is None:
+                        raise RuntimeError("no agents client on AzureAIAgentClient")
+                    res = agents_client.delete_agent(agent_id)
+                    if asyncio.iscoroutine(res):
+                        await res
                     print(f"[cleanup] deleted agent {agent_id}")
                 except Exception as e:  # noqa: BLE001
                     print(f"[cleanup] could not delete agent {agent_id}: {e}")
