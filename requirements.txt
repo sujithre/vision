@@ -1,0 +1,12 @@
+azure-identity>=1.17.0
+azure-search-documents==11.5.*
+requests>=2.32.0
+python-dotenv>=1.0.1
+python-pptx>=1.0.2
+openai>=1.54.0
+pymupdf>=1.24.0
+# Microsoft Agent Framework is pre-release; pin both packages to the same
+# version and install with `pip install --pre -r requirements.txt`.
+agent-framework==1.0.0rc6
+agent-framework-azure-ai==1.0.0rc6
+azure-ai-agents>=1.2.0b5,<1.2.0b6
